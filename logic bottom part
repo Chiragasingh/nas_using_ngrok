@@ -1,0 +1,66 @@
+# --- SERVER ROUTING LOGIC ---
+
+@app.route("/list", methods=["GET"])
+def list_files():
+    if not check_auth(): return "Forbidden", 403
+    
+    sub_path = request.args.get("path", "")
+    target_dir = get_safe_path(sub_path)
+    parent_sub_path = os.path.dirname(sub_path) if sub_path else ""
+
+    items_data = []
+    try:
+        for f in os.listdir(target_dir):
+            full_item_path = os.path.join(target_dir, f)
+            item_rel_path = os.path.join(sub_path, f).replace("\\", "/")
+            
+            if os.path.isdir(full_item_path):
+                ftype = 'folder'
+            elif f.lower().endswith(('.mp4', '.webm', '.mov', '.mkv')):
+                ftype = 'video'
+            elif f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
+                ftype = 'image'
+            else:
+                ftype = 'other'
+                
+            items_data.append({"name": f, "type": ftype, "rel_path": item_rel_path})
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+        
+    return render_template_string(GALLERY_HTML, items=items_data, token=SECRET_TOKEN, current_sub_path=sub_path, parent_sub_path=parent_sub_path)
+
+@app.route("/upload", methods=["POST"])
+def upload_file():
+    if not check_auth(): return "Forbidden", 403
+    if 'file' not in request.files: return "No file part", 400
+    
+    sub_path = request.args.get("path", "")
+    target_dir = get_safe_path(sub_path)
+    file = request.files['file']
+    
+    if file and file.filename != '':
+        destination = os.path.join(target_dir, os.path.basename(file.filename))
+        file.save(destination)
+        return "Success", 200
+    return "Failed", 400
+
+@app.route("/play", methods=["GET"])
+def play_video():
+    if not check_auth(): return "Forbidden", 403
+    file_rel_path = request.args.get("file", "")
+    return render_template_string(PLAYER_HTML, filename=os.path.basename(file_rel_path), file_path=file_rel_path, token=SECRET_TOKEN)
+
+@app.route("/stream", methods=["GET"])
+def stream_file():
+    if not check_auth(): return "Forbidden", 403
+    full_file_path = get_safe_path(request.args.get("file", ""))
+    return send_from_directory(os.path.dirname(full_file_path), os.path.basename(full_file_path), as_attachment=False)
+
+@app.route("/download", methods=["GET"])
+def download_file():
+    if not check_auth(): return "Forbidden", 403
+    full_file_path = get_safe_path(request.args.get("file", ""))
+    return send_from_directory(os.path.dirname(full_file_path), os.path.basename(full_file_path), as_attachment=True)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
