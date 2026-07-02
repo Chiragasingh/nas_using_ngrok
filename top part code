@@ -1,0 +1,23 @@
+#main code top part of the code
+from flask import Flask, send_from_directory, request, abort, render_template_string, redirect, url_for
+import os
+
+app = Flask(__name__)
+
+# --- CONFIGURATION ---
+BASE_DIRECTORY = r"D:\" 
+#save your password here it is then used in link
+SECRET_TOKEN = "your password"
+
+# --- SMART HELPER FUNCTIONS ---
+def check_auth():
+    return request.args.get("token", "") == SECRET_TOKEN
+
+def get_safe_path(sub_path):
+    if not sub_path:
+        return BASE_DIRECTORY
+    sub_path = sub_path.strip("/\\")
+    full_path = os.path.abspath(os.path.join(BASE_DIRECTORY, sub_path))
+    if not full_path.startswith(os.path.abspath(BASE_DIRECTORY)):
+        return BASE_DIRECTORY
+    return full_path
