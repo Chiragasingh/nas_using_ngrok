@@ -1,0 +1,200 @@
+# --- NETFLIX-STYLE UI TEMPLATE ---
+GALLERY_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StreamVault - Personal Gallery</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #141414; }
+        ::-webkit-scrollbar-thumb { background: #b91c1c; border-radius: 4px; }
+        body { background-color: #141414; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+        /* Hide scrollbar for grid to look cleaner */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="text-white overflow-x-hidden">
+
+    <!-- Upload Progress Toast -->
+    <div id="top-upload-toast" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-zinc-900 border border-red-600 px-6 py-3 rounded-full shadow-2xl flex items-center space-x-4 transition-all duration-500 opacity-0 -translate-y-20">
+        <i class="fa-solid fa-spinner animate-spin text-red-600"></i>
+        <span id="upload-file-name" class="text-sm font-medium">Uploading...</span>
+        <button class="bg-red-600 text-xs px-3 py-1 rounded-full font-bold" id="upload-percentage">0%</button>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full z-40 bg-gradient-to-b from-black to-transparent px-6 md:px-12 py-6 flex justify-between items-center pointer-events-none">
+        <div class="text-red-600 font-black text-2xl md:text-3xl tracking-wider pointer-events-auto">STREAMVAULT</div>
+        <button onclick="triggerGlobalUpload()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 md:px-6 rounded flex items-center space-x-2 transition pointer-events-auto shadow-lg">
+            <i class="fa-solid fa-cloud-arrow-up"></i> <span class="hidden md:inline">Upload File</span>
+        </button>
+        <input type="file" id="global-file-input" class="hidden" onchange="handleRealUpload(this)">
+    </nav>
+
+    <!-- Hero Section -->
+    <div class="relative h-[60vh] md:h-[70vh] w-full flex items-center px-6 md:px-12 bg-cover bg-center" style="background-image: linear-gradient(to top, #141414, transparent), url('https://images.unsplash.com/photo-1574267431647-c82e264b1851?q=80&w=1920');">
+        <div class="max-w-2xl space-y-4">
+            <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight">CINE STORAGE</h1>
+            <p class="text-zinc-400 text-md md:text-lg">
+                {% if current_sub_path %}
+                    Exploring folder: <span class="text-white font-bold">/{{ current_sub_path }}</span>
+                {% else %}
+                    Your personal aesthetic media hub. Stream, download, and manage your assets with cinematic ease.
+                {% endif %}
+            </p>
+            {% if current_sub_path %}
+                <a href="/list?token={{ token }}&path={{ parent_sub_path }}" class="inline-block mt-4 bg-zinc-800 hover:bg-zinc-700 text-white px-5 py-2 rounded font-bold transition">
+                    <i class="fa-solid fa-arrow-left mr-2"></i> Go Back
+                </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="px-6 md:px-12 pb-24 -mt-10 relative z-10 space-y-12">
+        <div class="space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-2xl font-bold tracking-wide">Library Index</h2>
+                
+                <!-- Live Search -->
+                <div class="relative w-48 md:w-64">
+                    <i class="fa-solid fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-zinc-500"></i>
+                    <input type="text" id="searchInput" onkeyup="filterMedia()" placeholder="Search..." class="w-full bg-zinc-900 border border-zinc-700 rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-red-600 text-white transition">
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" id="mediaGrid">
+                
+                {% for f in items %}
+                <div class="grid-item group relative bg-zinc-900 rounded-md overflow-hidden transform transition duration-300 hover:scale-105 hover:z-20 shadow-xl h-40 md:h-48" data-name="{{ f.name.lower() }}">
+                    
+                    <!-- Media Render based on type -->
+                    {% if f.type == 'folder' %}
+                        <div class="w-full h-full flex flex-col justify-center items-center bg-zinc-800">
+                            <i class="fa-solid fa-folder text-5xl text-zinc-600 mb-2 group-hover:text-red-500 transition"></i>
+                        </div>
+                        <a href="/list?token={{ token }}&path={{ f.rel_path }}" class="absolute inset-0 z-10"></a>
+                        
+                    {% elif f.type == 'video' %}
+                        <video src="/stream?token={{ token }}&file={{ f.rel_path }}#t=0.5" class="w-full h-full object-cover" muted></video>
+                        <a href="/play?token={{ token }}&file={{ f.rel_path }}" class="absolute inset-0 z-10"></a>
+                        
+                    {% elif f.type == 'image' %}
+                        <img src="/stream?token={{ token }}&file={{ f.rel_path }}" class="w-full h-full object-cover">
+                        <a href="/stream?token={{ token }}&file={{ f.rel_path }}" target="_blank" class="absolute inset-0 z-10"></a>
+                        
+                    {% else %}
+                        <div class="w-full h-full flex flex-col justify-center items-center bg-zinc-800">
+                            <i class="fa-solid fa-file-lines text-5xl text-zinc-600 mb-2"></i>
+                        </div>
+                    {% endif %}
+
+                    <!-- Hover Data Overlay -->
+                    <div class="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3 pointer-events-none">
+                        <p class="font-bold text-xs md:text-sm truncate text-white mb-2" title="{{ f.name }}">{{ f.name }}</p>
+                        
+                        <div class="flex justify-between items-center pointer-events-auto">
+                            {% if f.type != 'folder' %}
+                            <a href="/download?token={{ token }}&file={{ f.rel_path }}" class="bg-white text-black text-[10px] md:text-xs font-bold px-3 py-1.5 rounded flex items-center space-x-1 hover:bg-gray-300 transition shadow">
+                                <i class="fa-solid fa-arrow-down"></i> <span>DL</span>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Trigger hidden file input
+        function triggerGlobalUpload() {
+            document.getElementById('global-file-input').click();
+        }
+
+        // Live Search Filter
+        function filterMedia() {
+            let input = document.getElementById('searchInput').value.toLowerCase();
+            let items = document.getElementsByClassName('grid-item');
+            for (let i = 0; i < items.length; i++) {
+                let name = items[i].getAttribute('data-name');
+                items[i].style.display = name.includes(input) ? "" : "none";
+            }
+        }
+
+        // Actual JavaScript Upload Logic with API fetch
+        async function handleRealUpload(input) {
+            if (!input.files.length) return;
+            const file = input.files[0];
+            
+            // UI Toast elements
+            const toast = document.getElementById('top-upload-toast');
+            const nameLabel = document.getElementById('upload-file-name');
+            const percentBtn = document.getElementById('upload-percentage');
+            
+            nameLabel.innerText = file.name;
+            percentBtn.innerText = "Uploading...";
+            toast.classList.remove('opacity-0', '-translate-y-20');
+            
+            // Prepare data for server
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                // Send file to server running in background
+                const response = await fetch('/upload?token={{ token }}&path={{ current_sub_path }}', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if(response.ok) {
+                    percentBtn.innerText = "Done! ✓";
+                    percentBtn.classList.replace('bg-red-600', 'bg-green-600');
+                    setTimeout(() => {
+                        window.location.reload(); // Refresh to see the new file
+                    }, 1000);
+                } else {
+                    percentBtn.innerText = "Error!";
+                    setTimeout(() => toast.classList.add('opacity-0', '-translate-y-20'), 2000);
+                }
+            } catch (error) {
+                percentBtn.innerText = "Failed";
+                setTimeout(() => toast.classList.add('opacity-0', '-translate-y-20'), 2000);
+            }
+        }
+    </script>
+</body>
+</html>
+"""
+
+# --- CINEMATIC PLAYER TEMPLATE ---
+PLAYER_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playing - {{ filename }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>body { background: #000; overflow: hidden; }</style>
+</head>
+<body class="text-white h-screen w-screen flex flex-col">
+    <div class="absolute top-0 w-full p-6 bg-gradient-to-b from-black/80 to-transparent z-50 flex items-center gap-4 hover:opacity-100 transition duration-300">
+        <a href="javascript:history.back()" class="bg-zinc-800 hover:bg-zinc-700 text-white rounded-full w-10 h-10 flex items-center justify-center transition shadow-lg">
+            <i class="fa-solid fa-arrow-left"></i>
+        </a>
+        <h1 class="text-lg font-bold truncate">{{ filename }}</h1>
+    </div>
+    <video controls autoplay class="w-full h-full outline-none object-contain bg-black">
+        <source src="/stream?token={{ token }}&file={{ file_path }}" type="video/mp4">
+    </video>
+</body>
+</html>
+"""
